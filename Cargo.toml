@@ -1,0 +1,37 @@
+cargo-features = ["resolver"]
+
+[package]
+name = "bitsy-blinky"
+version = "0.1.0"
+authors = ["Dave Hylands <davehylands@fullstory.com>"]
+edition = "2018"
+resolver = "2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "bitsy-blinky"
+path = "src/bin.rs"
+test = false
+doc = false
+
+[features]
+default = []
+std = [
+    "drone-core/std",
+    "drone-cortexm/std",
+    "drone-stm32-map/std",
+    "futures/std",
+]
+heaptrace = ["drone-core/heaptrace"]
+
+[dependencies]
+drone-core = { version = "0.12.0" }
+drone-cortexm = { version = "0.12.0", features = ["bit-band", "floating-point-unit", "memory-protection-unit"] }
+drone-stm32-map = { path = "../drone-os-patched/drone-stm32-map", features = ["adc", "dma", "exti", "gpio", "i2c", "tim"] }
+futures = { version = "0.3.0", default-features = false }
+
+[profile.release]
+lto = true
+debug = true
+panic = "abort"
