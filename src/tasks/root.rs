@@ -5,7 +5,7 @@ use crate::{consts::*, thr, thr::ThrsInit, Regs};
 use drone_cortexm::{fib, reg::prelude::*, /*swo,*/ thr::prelude::*};
 use drone_stm32_map::{
     periph::{
-        gpio::{periph_gpio_a, GpioA, GpioPortPeriph},
+        gpio::{periph_gpio_a8, pin::GpioPinMap, pin::GpioPinPeriph},
         sys_tick::{periph_sys_tick, SysTickPeriph},
     },
     reg,
@@ -20,7 +20,6 @@ pub struct TickOverflow;
 #[inline(never)]
 pub fn handler(reg: Regs, thr_init: ThrsInit) {
     let thr = thr::init(thr_init);
-    let gpio_a = periph_gpio_a!(reg);
     let sys_tick = periph_sys_tick!(reg);
 
     thr.hard_fault.add_once(|| panic!("Hard Fault"));
@@ -37,7 +36,12 @@ pub fn handler(reg: Regs, thr_init: ThrsInit) {
     )
     .root_wait();
 
-    beacon(gpio_a, sys_tick, thr.sys_tick)
+    // Enable power for GPIOA
+    reg.rcc_ahb1enr.gpioaen.set_bit();
+
+    let led = periph_gpio_a8!(reg);
+
+    beacon(led, sys_tick, thr.sys_tick)
         .root_wait()
         .expect("beacon fail");
 
@@ -61,7 +65,7 @@ async fn raise_system_frequency(
     // The '405 has a single bit VOS field, but it doesn't seem to be in the
     // SVD file. The power on default is 1, which is what we want to set it
     // to anyways, so we'll just leave this commented out for now.
-    // 
+    //
     // The original code below was for the F411 which has a 2-bit VOS field.
     //
     // Set VOS field in PWR_CR register to Scale 1 (0b11) (<= 100 MHz)
@@ -123,10 +127,10 @@ async fn raise_system_frequency(
     }
 
     rcc_cfgr.modify(|r| {
-        r.write_ppre1(0b101)    // 0b101 = Divide by 4 - APB1       - 24 MHz (must be < 45 MHz)
-            .write_ppre2(0b100) // 0b100 = Divide by 2 - APB2       - 48 MHz (must be < 90 MHz)
-            .write_hpre(0b0000) // 0b0000 = Divide by 1 - AHB       - 96 MHz
-            .write_sw(0b10)     // 0b10 = Use PLL for System Clock  - 96 MHz
+        r.write_ppre1(0b101) // 0b101 = Divide by 4 - APB1 - 24 MHz (must be < 45 MHz)
+            .write_ppre2(0b100) // 0b100 = Divide by 2 - APB2 - 48 MHz (must be < 90 MHz)
+            .write_hpre(0b0000) // 0b0000 = Divide by 1 - AHB - 96 MHz
+            .write_sw(0b10) // 0b10 = Use PLL for System Clock - 96 MHz
     });
 
     if rcc_cfgr.load().sws() != 0b10 {
@@ -134,16 +138,14 @@ async fn raise_system_frequency(
     }
 }
 
-async fn beacon(
-    gpio_a: GpioPortPeriph<GpioA>,
+async fn beacon<T: GpioPinMap>(
+    led: GpioPinPeriph<T>,
     sys_tick: SysTickPeriph,
     thr_sys_tick: thr::SysTick,
 ) -> Result<(), TickOverflow> {
-    gpio_a.rcc_busenr_gpioen.set_bit(); // GPIO port C clock enable
-
-    gpio_a.gpio_moder.modify(|r| r.write_moder8(0b01)); // General purpose output mode.
-    gpio_a.gpio_otyper.ot8.clear_bit(); // Push-Pull
-    gpio_a.gpio_ospeedr.modify(|r| r.write_ospeedr8(0b11)); // High Speed
+    led.gpio_moder_moder.write_bits(0b01); // 0b01 - General purpose output mode.
+    led.gpio_otyper_ot.clear_bit(); // 0 = Push-Pull
+    led.gpio_ospeedr_ospeedr.write_bits(0b11); // 0b11 - High Speed
 
     // Attach a listener that will notify us on each interrupt trigger.
     let mut tick_stream = thr_sys_tick.add_stream_pulse(
@@ -179,12 +181,12 @@ async fn beacon(
             match counter {
                 // On 0's and 250's millisecond pull the pin low.
                 0 | 2 => {
-                    gpio_a.gpio_bsrr.br8.set_bit();
+                    led.gpio_bsrr_br.set_bit();
                 }
                 // On 125's, 375's, 500's, 625's, 750's, and 875's millisecond
                 // pull the pin high.
                 _ => {
-                    gpio_a.gpio_bsrr.bs8.set_bit();
+                    led.gpio_bsrr_bs.set_bit();
                 }
             }
             counter = (counter + 1) % 8;

@@ -2,13 +2,13 @@
 #![no_main]
 #![no_std]
 
-use drone_core::{mem, token::Token};
-use drone_cortexm::processor;
 use bitsy_blinky::{
     tasks,
     thr::{Handlers, ThrsInit, Vtable},
     Regs,
 };
+use drone_core::{mem, token::Token};
+use drone_cortexm::processor;
 
 /// The vector table.
 #[no_mangle]

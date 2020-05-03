@@ -10,7 +10,7 @@ pub const FLASH_LATENCY: u32 = 5;
 pub const HSE_FREQ: u32 = 25_000_000;
 
 /// HSI crystal frequency.
-pub const HSI_FREQ: u32 = 8_000_000;
+pub const HSI_FREQ: u32 = 16_000_000;
 
 // VCO-freq = HSE * (PLLN / PLLM) = 336 MHz
 // PLL general clock = VCO-freq / PLLP = 168 MHz
